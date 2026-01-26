@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Indie+Flower&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  /* Apply Pure Dark Background - No colors */
+  background-color: #050505;
+  background-image:
+    radial-gradient(circle at 50% 0%, #1a1a1a 0%, transparent 60%);
+  background-size: 100% 100%;
+  background-attachment: fixed;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  color: white;
+  min-height: 100vh;
+}
+
+/* Handwriting Font Class */
+.font-handwriting {
+  font-family: 'Indie Flower', cursive;
+  font-size: 1.2em;
+  /* Slightly larger to be readable */
+}
+
+/* Custom Scrollbar - Lean & Mean */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Snackbar Animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out forwards;
+}
