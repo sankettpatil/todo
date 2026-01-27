@@ -518,9 +518,9 @@ export default function NoteGrid() {
 
                 {/* RIGHT PANEL: Saved Notes Grid */}
                 <div className="flex-1 flex flex-col">
-                    {/* Fixed Grid - 3 columns */}
-                    <div className="flex-1 p-8 overflow-hidden">
-                        <div className="grid grid-cols-3 gap-8 h-full max-w-[1800px] mx-auto auto-rows-fr items-stretch">
+                    {/* Responsive Grid with Scrolling */}
+                    <div className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 max-w-[1800px] mx-auto auto-rows-max">
                             {currentNotes.length > 0 ? (
                                 currentNotes.map(note => (
                                     <StickyNote
