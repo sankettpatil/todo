@@ -15,9 +15,12 @@ import os
 app = FastAPI(root_path="/api" if os.getenv("VERCEL") else "")
 
 # Allow CORS for frontend
+# In production, this should be set to your Netlify URL
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*", "X-User-Email", "Content-Type", "Authorization"],

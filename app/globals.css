@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Indie+Flower&family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
   --foreground-rgb: 255, 255, 255;
@@ -19,7 +18,7 @@ body {
 
 /* Handwriting Font Class */
 .font-handwriting {
-  font-family: 'Indie Flower', cursive;
+  font-family: var(--font-indie-flower), cursive;
   font-size: 1.2em;
   /* Slightly larger to be readable */
 }

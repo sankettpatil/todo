@@ -1,4 +1,4 @@
-import NoteGrid from '../components/NoteGrid';
+import NoteGrid from '@/components/NoteGrid';
 
 export default function Home() {
   return (

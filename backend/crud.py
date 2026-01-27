@@ -18,7 +18,8 @@ def get_notes(db: Session, owner_email: str | None = None, skip: int = 0, limit:
             points=points,
             created_at=note.created_at,
             updated_at=note.updated_at,
-            owner_email=note.owner_email
+            owner_email=note.owner_email,
+            reminder_time=note.reminder_time
         ))
     return results
 
@@ -33,7 +34,8 @@ def create_note(db: Session, note: schemas.NoteCreate, owner_email: str | None =
         content=content_json,
         created_at=timestamp,
         updated_at=timestamp,
-        owner_email=owner_email
+        owner_email=owner_email,
+        reminder_time=note.reminder_time
     )
     db.add(db_note)
     db.commit()
@@ -47,7 +49,8 @@ def create_note(db: Session, note: schemas.NoteCreate, owner_email: str | None =
         points=note.points,
         created_at=db_note.created_at,
         updated_at=db_note.updated_at,
-        owner_email=db_note.owner_email
+        owner_email=db_note.owner_email,
+        reminder_time=db_note.reminder_time
     )
 
 def delete_note(db: Session, note_id: int):
@@ -65,6 +68,8 @@ def update_note(db: Session, note_id: int, note_update: schemas.NoteUpdate):
         db_note.description = note_update.description
     if note_update.points is not None:
         db_note.content = json.dumps(note_update.points)
+    if note_update.reminder_time is not None:
+        db_note.reminder_time = note_update.reminder_time
     
     # Update timestamp whenever note is edited
     db_note.updated_at = int(time.time())
@@ -80,5 +85,6 @@ def update_note(db: Session, note_id: int, note_update: schemas.NoteUpdate):
         points=points,
         created_at=db_note.created_at,
         updated_at=db_note.updated_at,
-        owner_email=db_note.owner_email
+        owner_email=db_note.owner_email,
+        reminder_time=db_note.reminder_time
     )

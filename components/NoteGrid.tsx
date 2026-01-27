@@ -14,6 +14,7 @@ interface Note {
     points: string[];
     created_at?: number;
     updated_at?: number;
+    reminder_time?: number;  // Unix timestamp for reminder
 }
 
 export default function NoteGrid() {
@@ -27,6 +28,8 @@ export default function NoteGrid() {
     // Form State
     const [newTitle, setNewTitle] = useState('');
     const [newPoints, setNewPoints] = useState<string[]>(['']);
+    const [newReminderDate, setNewReminderDate] = useState<string>(''); // YYYY-MM-DD
+    const [newReminderTime, setNewReminderTime] = useState<string>(''); // HH:MM
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -37,10 +40,19 @@ export default function NoteGrid() {
     // Sidebar State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+    // Drag and Drop State
+    const [draggedNote, setDraggedNote] = useState<number | null>(null);
+    const [dragOverNote, setDragOverNote] = useState<number | null>(null);
+
 
     useEffect(() => {
         // Force dark mode class
         document.documentElement.classList.add('dark');
+
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
     }, []);
 
     useEffect(() => {
@@ -50,6 +62,43 @@ export default function NoteGrid() {
             fetchNotes();
         }
     }, [status, router]);
+
+    // Check for reminders every minute
+    useEffect(() => {
+        const checkReminders = () => {
+            const now = Math.floor(Date.now() / 1000);
+            const notifiedKey = 'notified_reminders';
+            const notified = JSON.parse(localStorage.getItem(notifiedKey) || '[]');
+
+            notes.forEach(note => {
+                if (note.reminder_time) {
+                    // Only trigger if:
+                    // 1. The reminder time has arrived (within the last 2 minutes)
+                    // 2. Haven't already notified
+                    const timeDiff = now - note.reminder_time;
+                    const isTimeToNotify = timeDiff >= 0 && timeDiff < 120; // Within 2 minutes of scheduled time
+
+                    if (isTimeToNotify && !notified.includes(note.id)) {
+                        // Show snackbar notification
+                        setSnackbar({
+                            message: `⏰ Reminder: ${note.title}`,
+                            type: 'info'
+                        });
+
+                        // Mark as notified
+                        notified.push(note.id);
+                        localStorage.setItem(notifiedKey, JSON.stringify(notified));
+                    }
+                }
+            });
+        };
+
+        // Check immediately and then every minute
+        checkReminders();
+        const interval = setInterval(checkReminders, 60000); // 1 minute
+
+        return () => clearInterval(interval);
+    }, [notes]);
 
     const fetchNotes = async () => {
         if (!session?.user?.email) return;
@@ -75,6 +124,13 @@ export default function NoteGrid() {
         const nonEmptyPoints = newPoints.filter(p => p.trim());
         const timestamp = Math.floor(Date.now() / 1000);
 
+        // Combine date and time into timestamp
+        let reminderTimestamp: number | undefined;
+        if (newReminderDate && newReminderTime) {
+            const dateTimeStr = `${newReminderDate}T${newReminderTime}`;
+            reminderTimestamp = Math.floor(new Date(dateTimeStr).getTime() / 1000);
+        }
+
         try {
             const res = await fetch(`${API_URL}/notes/`, {
                 method: 'POST',
@@ -87,7 +143,8 @@ export default function NoteGrid() {
                     points: nonEmptyPoints,
                     owner_email: session.user.email,
                     created_at: timestamp,
-                    updated_at: timestamp
+                    updated_at: timestamp,
+                    reminder_time: reminderTimestamp
                 }),
             });
 
@@ -96,6 +153,8 @@ export default function NoteGrid() {
                 setNotes([savedNote, ...notes]);
                 setNewTitle('');
                 setNewPoints(['']);
+                setNewReminderDate(''); // Clear date
+                setNewReminderTime(''); // Clear time
 
                 // Show success snackbar
                 setSnackbar({ message: 'Note created successfully!', type: 'success' });
@@ -114,7 +173,6 @@ export default function NoteGrid() {
 
     const handleDelete = async (id: number) => {
         if (!session?.user?.email) return;
-        if (!confirm('Are you sure you want to delete this note?')) return;
 
         try {
             const res = await fetch(`${API_URL}/notes/${id}`, {
@@ -132,6 +190,46 @@ export default function NoteGrid() {
         } catch (error) {
             console.error('Error deleting note:', error);
         }
+    };
+
+    // Drag and Drop Handlers
+    const handleDragStart = (e: React.DragEvent, noteId: number) => {
+        setDraggedNote(noteId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent, noteId: number) => {
+        e.preventDefault();
+        setDragOverNote(noteId);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedNote(null);
+        setDragOverNote(null);
+    };
+
+    const handleDrop = (e: React.DragEvent, targetNoteId: number) => {
+        e.preventDefault();
+
+        if (draggedNote === null || draggedNote === targetNoteId) {
+            setDraggedNote(null);
+            setDragOverNote(null);
+            return;
+        }
+
+        // Reorder notes
+        const newNotes = [...notes];
+        const draggedIndex = newNotes.findIndex(n => n.id === draggedNote);
+        const targetIndex = newNotes.findIndex(n => n.id === targetNoteId);
+
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            const [removed] = newNotes.splice(draggedIndex, 1);
+            newNotes.splice(targetIndex, 0, removed);
+            setNotes(newNotes);
+        }
+
+        setDraggedNote(null);
+        setDragOverNote(null);
     };
 
     const handleUpdate = async (id: number, updates: { title?: string, description?: string, points?: string[] }) => {
@@ -154,11 +252,15 @@ export default function NoteGrid() {
                     'Content-Type': 'application/json',
                     'X-User-Email': session.user.email
                 },
-                body: JSON.stringify(updatesWithTime),
+                body: JSON.stringify(updatesWithTime)
             });
-            // Background sync success
+            // Show update confirmation
+            setSnackbar({ message: 'Note updated', type: 'success' });
         } catch (error) {
             console.error('Error updating note:', error);
+            setSnackbar({ message: 'Failed to update note', type: 'error' });
+            // Revert on error
+            fetchNotes();
         }
     };
 
@@ -196,9 +298,9 @@ export default function NoteGrid() {
     // Get greeting based on time
     const getGreeting = () => {
         const hour = new Date().getHours();
-        if (hour < 12) return { text: "Good morning", emoji: "☀️" };
-        if (hour < 17) return { text: "Good afternoon", emoji: "🌤️" };
-        return { text: "Good evening", emoji: "🌙" };
+        if (hour < 12) return "Good morning";
+        if (hour < 17) return "Good afternoon";
+        return "Good evening";
     };
 
     const userName = session.user?.name?.split(' ')[0] || 'there';
@@ -208,10 +310,12 @@ export default function NoteGrid() {
         <div className="flex flex-col h-screen">
             {/* TOP HEADER with Logout */}
             <div className="flex justify-between items-center px-8 py-3 border-b border-white/10">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-lg font-medium text-white/50 tracking-tight">Sanket's lovey dovey project</h1>
-                    <p className="text-xl font-bold text-white/90">
-                        {greeting.text}, {userName} {greeting.emoji} — {notes.length} {notes.length === 1 ? 'note' : 'notes'}
+                <div className="flex flex-col gap-0.5">
+                    <h1 className="text-2xl font-bold text-white/90 tracking-tight">
+                        {greeting}, {userName}
+                    </h1>
+                    <p className="text-sm text-white/40 font-medium">
+                        DSA or Grocery List Today ?
                     </p>
                 </div>
 
@@ -239,14 +343,36 @@ export default function NoteGrid() {
                         </div>
                     )}
 
-                    {session && (
+                    {/* Profile Picture with Note Count Tooltip */}
+                    <div className="flex flex-col items-center gap-1.5">
+                        {/* Profile Picture - Shows note count on hover */}
+                        <div className="group relative">
+                            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 hover:border-white/40 transition-all duration-200 hover:scale-105 cursor-pointer">
+                                {session.user?.image ? (
+                                    <img
+                                        src={session.user.image}
+                                        alt="Profile"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                                        {session.user?.name?.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                            </div>
+                            {/* Note count tooltip */}
+                            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap bg-black/90 text-white text-xs px-2 py-1 rounded">
+                                {notes.length} {notes.length === 1 ? 'note' : 'notes'}
+                            </div>
+                        </div>
+                        {/* Clickable Sign Out text */}
                         <button
                             onClick={() => import('next-auth/react').then(m => m.signOut())}
-                            className="px-6 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 font-semibold text-sm transition-all"
+                            className="text-[9px] font-semibold text-white/40 hover:text-white/70 uppercase tracking-wide transition-colors cursor-pointer"
                         >
                             Sign Out
                         </button>
-                    )}
+                    </div>
                 </div>
             </div>
 
@@ -257,35 +383,35 @@ export default function NoteGrid() {
                     {isSidebarOpen && (
                         <div className="
                         relative w-full max-w-md
-                        bg-gradient-to-br from-[#1c1c1e]/80 to-[#2c2c2e]/60
+                        bg-gradient-to-br from-[#1c1c1e]/90 to-[#2c2c2e]/70
                         backdrop-blur-3xl
-                        rounded-3xl
-                        p-10
+                        rounded-[2rem]
+                        p-5
                         border border-white/10
-                        shadow-2xl
+                        shadow-2xl shadow-black/40
                         flex flex-col
                         max-h-full
                         ">
                             {/* Subtle Top Gradient Line */}
-                            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
 
-                            <h2 className="text-3xl font-semibold mb-8 text-center text-white tracking-tight">
+                            <h2 className="text-2xl font-bold mb-4 text-center text-white tracking-tight">
                                 New Note
                             </h2>
 
-                            <form id="create-note-form" onSubmit={handleCreateNote} className="flex flex-col flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                <div className="space-y-6 pb-6">
+                            <form id="create-note-form" onSubmit={handleCreateNote} className="flex flex-col">
+                                <div className="space-y-3 pb-4">
                                     <input
                                         type="text"
-                                        placeholder="e.g. Grocery List"
+                                        placeholder="Title"
                                         value={newTitle}
                                         onChange={(e) => setNewTitle(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-xl font-medium text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all block"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-base font-semibold text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 focus:bg-white/[0.08] transition-all duration-200 block"
                                     />
 
-                                    <div className="space-y-3">
+                                    <div className="space-y-2.5">
                                         {newPoints.map((point, index) => (
-                                            <div key={index} className="flex gap-3 group">
+                                            <div key={index} className="flex gap-2 group">
                                                 <input
                                                     type="text"
                                                     placeholder={`Task ${index + 1}`}
@@ -301,16 +427,16 @@ export default function NoteGrid() {
                                                             setNewPoints(newPoints.filter((_, i) => i !== index));
                                                         }
                                                     }}
-                                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all font-light block"
+                                                    className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded-lg px-3.5 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 focus:bg-white/[0.07] transition-all duration-200 font-normal block"
                                                     autoFocus={index === newPoints.length - 1 && index > 0}
                                                 />
                                                 {newPoints.length > 1 && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setNewPoints(newPoints.filter((_, i) => i !== index))}
-                                                        className="text-white/20 hover:text-red-400 transition-colors p-2"
+                                                        className="text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 p-1.5 rounded-lg"
                                                     >
-                                                        <X size={18} />
+                                                        <X size={16} />
                                                     </button>
                                                 )}
                                             </div>
@@ -320,20 +446,51 @@ export default function NoteGrid() {
                                     <button
                                         type="button"
                                         onClick={addPointInput}
-                                        className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl px-4 py-3 text-white/50 hover:text-white/80 transition-all flex items-center gap-3 group text-base font-normal text-left block"
+                                        className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] hover:border-white/15 rounded-lg px-3.5 py-2 text-white/40 hover:text-white/80 transition-all duration-200 flex items-center gap-2 group text-sm font-normal text-left"
                                     >
-                                        <Plus size={20} className="opacity-50 group-hover:opacity-100 transition-opacity" />
-                                        <span className="">Add another task</span>
+                                        <Plus size={16} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+                                        <span>Add another task</span>
                                     </button>
+
+                                    {/* Reminder Date & Time Picker */}
+                                    <div className="pt-2 space-y-2">
+                                        <label className="block text-[9px] font-bold text-white/40 uppercase tracking-widest">
+                                            ⏰ Remind Me
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-2.5">
+                                            <div>
+                                                <label className="block text-[8px] font-semibold text-white/30 mb-1 uppercase tracking-wide">
+                                                    Date
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    value={newReminderDate}
+                                                    onChange={(e) => setNewReminderDate(e.target.value)}
+                                                    className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 focus:bg-white/[0.07] transition-all duration-200 [color-scheme:dark] hover:bg-white/[0.06] hover:border-white/15 cursor-pointer"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[8px] font-semibold text-white/30 mb-1 uppercase tracking-wide">
+                                                    Time
+                                                </label>
+                                                <input
+                                                    type="time"
+                                                    value={newReminderTime}
+                                                    onChange={(e) => setNewReminderTime(e.target.value)}
+                                                    className="w-full bg-white/[0.04] border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 focus:bg-white/[0.07] transition-all duration-200 [color-scheme:dark] hover:bg-white/[0.06] hover:border-white/15 cursor-pointer"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </form>
 
-                            <div className="pt-4 mt-4 border-t border-white/5">
+                            <div className="pt-3 mt-3 border-t border-white/10">
                                 <button
                                     type="submit"
                                     form="create-note-form"
                                     disabled={!newTitle.trim()}
-                                    className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+                                    className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:from-gray-600 disabled:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold tracking-wide py-2.5 px-4 rounded-xl shadow-xl shadow-blue-500/30 hover:shadow-blue-500/40 disabled:shadow-none transition-all duration-300 transform hover:-translate-y-0.5 hover:scale-[1.02] active:translate-y-0 active:scale-100 text-sm uppercase"
                                 >
                                     Create Note
                                 </button>
@@ -355,7 +512,7 @@ export default function NoteGrid() {
                 <div className="flex-1 flex flex-col">
                     {/* Fixed Grid - 3 columns */}
                     <div className="flex-1 p-8 overflow-hidden">
-                        <div className="grid grid-cols-3 gap-8 h-full max-w-[1800px] mx-auto">
+                        <div className="grid grid-cols-3 gap-8 h-full max-w-[1800px] mx-auto auto-rows-fr items-stretch">
                             {currentNotes.length > 0 ? (
                                 currentNotes.map(note => (
                                     <StickyNote
@@ -366,8 +523,16 @@ export default function NoteGrid() {
                                         points={note.points}
                                         created_at={note.created_at}
                                         updated_at={note.updated_at}
+                                        reminder_time={note.reminder_time}
                                         onDelete={handleDelete}
                                         onUpdate={handleUpdate}
+                                        draggable={true}
+                                        onDragStart={handleDragStart}
+                                        onDragOver={handleDragOver}
+                                        onDragEnd={handleDragEnd}
+                                        onDrop={handleDrop}
+                                        isDragging={draggedNote === note.id}
+                                        isDragOver={dragOverNote === note.id}
                                     />
                                 ))
                             ) : (
@@ -379,6 +544,13 @@ export default function NoteGrid() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-white/5 py-3 text-center">
+                <p className="text-xs text-white/30 font-medium">
+                    Made With <span className="text-red-400">❤️</span> By Sanket
+                </p>
             </div>
 
             {/* Snackbar */}

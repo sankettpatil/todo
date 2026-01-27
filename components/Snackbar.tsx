@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from 'react';
-import { Check, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface SnackbarProps {
     message: string;
@@ -13,7 +13,7 @@ export default function Snackbar({ message, type = 'success', onClose }: Snackba
     useEffect(() => {
         const timer = setTimeout(() => {
             onClose();
-        }, 3000);
+        }, 5000); // Extended to 5 seconds
 
         return () => clearTimeout(timer);
     }, [onClose]);
@@ -21,7 +21,6 @@ export default function Snackbar({ message, type = 'success', onClose }: Snackba
     const bgColor = type === 'success' ? 'bg-green-500/20' : type === 'error' ? 'bg-red-500/20' : 'bg-blue-500/20';
     const borderColor = type === 'success' ? 'border-green-400/40' : type === 'error' ? 'border-red-400/40' : 'border-blue-400/40';
     const textColor = type === 'success' ? 'text-green-300' : type === 'error' ? 'text-red-300' : 'text-blue-300';
-    const Icon = type === 'success' ? Check : X;
 
     return (
         <div className={`
@@ -33,7 +32,6 @@ export default function Snackbar({ message, type = 'success', onClose }: Snackba
             flex items-center gap-3
             animate-slide-up
         `}>
-            <Icon size={20} className="flex-shrink-0" />
             <span className="font-semibold">{message}</span>
             <button
                 onClick={onClose}

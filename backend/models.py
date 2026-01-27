@@ -11,3 +11,4 @@ class Note(Base):
     created_at = Column(Integer, nullable=True)
     updated_at = Column(Integer, nullable=True)
     owner_email = Column(String, index=True, nullable=True) # Optional: for ordering
+    reminder_time = Column(Integer, nullable=True) # Unix timestamp for reminder

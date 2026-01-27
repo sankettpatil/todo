@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Indie_Flower } from 'next/font/google';
 import './globals.css';
-import AuthProvider from '../components/AuthProvider';
+import AuthProvider from '@/components/AuthProvider';
 
 const inter = Inter({ subsets: ['latin'] });
+const indieFlower = Indie_Flower({ weight: '400', subsets: ['latin'], variable: '--font-indie-flower' });
 
 export const metadata: Metadata = {
   title: 'Sticky Board',
@@ -17,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${indieFlower.variable}`}>
         <AuthProvider>
           {children}
         </AuthProvider>

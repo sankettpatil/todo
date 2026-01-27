@@ -11,11 +11,24 @@ interface NoteProps {
     points: string[];
     created_at?: number;
     updated_at?: number;
+    reminder_time?: number; // Unix timestamp for scheduled reminder
     onDelete: (id: number) => void;
     onUpdate: (id: number, updates: { title?: string, description?: string, points?: string[] }) => void;
+    // Drag and drop
+    draggable?: boolean;
+    onDragStart?: (e: React.DragEvent, id: number) => void;
+    onDragOver?: (e: React.DragEvent, id: number) => void;
+    onDragEnd?: () => void;
+    onDrop?: (e: React.DragEvent, id: number) => void;
+    isDragging?: boolean;
+    isDragOver?: boolean;
 }
 
-export default function StickyNote({ id, title, description, points, created_at, updated_at, onDelete, onUpdate }: NoteProps) {
+export default function StickyNote({
+    id, title, description, points, created_at, updated_at, reminder_time,
+    onDelete, onUpdate,
+    draggable = true, onDragStart, onDragOver, onDragEnd, onDrop, isDragging = false, isDragOver = false
+}: NoteProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newPoint, setNewPoint] = useState('');
 
@@ -108,6 +121,17 @@ export default function StickyNote({ id, title, description, points, created_at,
         const newPoints = [...points];
         newPoints[index] = newPointStr;
 
+        // Check if all tasks are now completed (excluding images and headings)
+        const actualTasks = newPoints.filter(p => !p.startsWith('data:image_block:') && !p.startsWith('H:'));
+        const allTasksCompleted = actualTasks.length > 0 && actualTasks.every(p => p.startsWith('DONE:'));
+
+        if (allTasksCompleted) {
+            // Auto-delete the note after a brief delay to show the completion animation
+            setTimeout(() => {
+                onDelete(id);
+            }, 500);
+        }
+
         // We do NOT sort here locally; we send update to backend, which saves it. 
         // The re-render will handle sorting if we implement sorting logic in the render block.
         onUpdate(id, { points: newPoints });
@@ -151,19 +175,29 @@ export default function StickyNote({ id, title, description, points, created_at,
       transition-all duration-300
       hover:-translate-y-1 hover:shadow-2xl
       flex flex-col
-    `}>
+      ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}
+      ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}
+      ${isDragOver ? 'ring-2 ring-blue-400/50' : ''}
+    `}
+            draggable={draggable}
+            onDragStart={(e) => onDragStart?.(e, id)}
+            onDragOver={(e) => onDragOver?.(e, id)}
+            onDragEnd={() => onDragEnd?.()}
+            onDrop={(e) => onDrop?.(e, id)}
+        >
             {/* Header */}
-            <div className="flex items-start justify-between p-6 pb-4 border-b border-white/5">
+            <div className="relative flex items-start justify-between p-6 pb-4 border-b border-white/5">
                 <div className="flex flex-col min-w-0 flex-1 mr-4">
                     {isEditing ? (
                         <input
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
-                            className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full bg-transparent border-none text-2xl font-bold text-white focus:outline-none placeholder:text-white/30 -ml-0.5"
+                            placeholder="Title..."
                         />
                     ) : (
-                        <h3 className="text-xl font-bold text-white tracking-tight truncate pr-2">
+                        <h3 className="text-2xl font-bold text-white tracking-tight truncate pr-2">
                             {title}
                         </h3>
                     )}
@@ -176,20 +210,22 @@ export default function StickyNote({ id, title, description, points, created_at,
                     >
                         <X size={20} />
                     </button>
-
-                    {dateStr && !isEditing && (
-                        <div className="flex items-center gap-2">
-                            {isEdited && (
-                                <span className="text-xs uppercase tracking-wider text-white/30 font-semibold">
-                                    Edited
-                                </span>
-                            )}
-                            <span className="text-xs uppercase tracking-wider text-white/30 font-semibold">
-                                {dateStr}
-                            </span>
-                        </div>
-                    )}
                 </div>
+
+                {/* Timestamp at border line - ORIGINAL DESIGN RESTORED */}
+                {dateStr && !isEditing && (
+                    <div className="absolute -bottom-2.5 right-6 bg-[#1c1c1e] px-2 flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-white/30 font-semibold">
+                            {dateStr}
+                        </span>
+                        {isEdited && (
+                            <span className="text-[8px] uppercase tracking-wider text-white/20 font-semibold">
+                                Edited
+                            </span>
+                        )}
+                    </div>
+                )}
+
             </div>
 
             {/* Content */}
@@ -207,12 +243,15 @@ export default function StickyNote({ id, title, description, points, created_at,
                         {isEditing ? (
                             // Edit Mode: Show purely in array order, modern styled inputs
                             editPoints.map((point, index) => (
-                                <li key={index} className="flex gap-3">
+                                <li key={index} className="flex items-start gap-4">
+                                    <div className="mt-1 flex-shrink-0 text-white/20">
+                                        <Circle size={20} />
+                                    </div>
                                     <input
                                         type="text"
                                         value={point}
                                         onChange={(e) => updateEditPoint(index, e.target.value)}
-                                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-base text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                                        className="flex-1 bg-transparent border-none text-base text-white/90 placeholder-white/30 focus:outline-none leading-relaxed -ml-0.5 py-0.5"
                                         placeholder="Task text..."
                                     />
                                     <button
@@ -220,9 +259,9 @@ export default function StickyNote({ id, title, description, points, created_at,
                                             const newPts = editPoints.filter((_, i) => i !== index);
                                             setEditPoints(newPts);
                                         }}
-                                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded-lg transition-all"
+                                        className="text-red-400/40 hover:text-red-300 transition-all mt-0.5"
                                     >
-                                        <X size={18} />
+                                        <X size={16} />
                                     </button>
                                 </li>
                             ))
@@ -291,6 +330,16 @@ export default function StickyNote({ id, title, description, points, created_at,
 
             {/* Action Bar */}
             <div className="mt-auto px-6 py-4 border-t border-white/5 flex gap-2 justify-between items-center relative">
+                {/* Scheduled Reminder - at bottom border line, matching timestamp style */}
+                {reminder_time && !isEditing && (
+                    <div className="absolute -top-2.5 right-6 bg-[#1c1c1e] px-2 flex items-center gap-1.5">
+                        <span className="text-[10px]">⏰</span>
+                        <span className="text-[10px] uppercase tracking-wider text-white/30 font-semibold">
+                            {new Date(reminder_time * 1000).toLocaleDateString()} at {new Date(reminder_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </div>
+                )}
+
                 <button
                     onClick={() => setIsAdding(!isAdding)}
                     className={`p-3 rounded-full hover:bg-white/10 transition-all ${isAdding ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'}`}
