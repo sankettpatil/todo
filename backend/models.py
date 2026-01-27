@@ -1,5 +1,8 @@
 from sqlalchemy import Boolean, Column, Integer, String
-from .database import Base
+try:
+    from .database import Base
+except ImportError:
+    from database import Base
 
 class Note(Base):
     __tablename__ = "notes"

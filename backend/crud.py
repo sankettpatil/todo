@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
+try:
+    from . import models, schemas
+except ImportError:
+    import models, schemas
 import json
 
 def get_notes(db: Session, owner_email: str | None = None, skip: int = 0, limit: int = 100):
