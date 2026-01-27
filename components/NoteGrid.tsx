@@ -85,6 +85,14 @@ export default function NoteGrid() {
                             type: 'info'
                         });
 
+                        // Show system notification (works even if tab is not focused)
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('Sticky Board Reminder', {
+                                body: `msg: ${note.title}`,
+                                icon: '/waving_man_3d_icon.png' // Use our new cool icon
+                            });
+                        }
+
                         // Mark as notified
                         notified.push(note.id);
                         localStorage.setItem(notifiedKey, JSON.stringify(notified));

@@ -23,11 +23,15 @@ export default function LoginPage() {
                 <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
 
                 <div>
-                    <div className="mx-auto w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-[0_0_30px_-10px_rgba(255,255,255,0.3)]">
-                        <span className="text-3xl">🍏</span>
+                    <div className="mx-auto w-32 h-32 mb-6 relative hover:scale-105 transition-transform duration-300 rounded-[2.5rem] overflow-hidden border-2 border-white/10 shadow-2xl">
+                        <img
+                            src="/waving_man_3d_icon.png"
+                            alt="Waving Man"
+                            className="w-full h-full object-cover"
+                        />
                     </div>
-                    <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
-                        Welcome Back
+                    <h1 className="text-3xl font-bold text-white tracking-tight mb-2 leading-tight">
+                        Wanna Write Cool Notes?
                     </h1>
                     <p className="text-white/40 text-lg">
                         Sign in to access your notes.
