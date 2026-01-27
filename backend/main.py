@@ -3,8 +3,12 @@ from sqlalchemy.orm import Session
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import crud, models, schemas
-from .database import SessionLocal, engine
+try:
+    from . import crud, models, schemas
+    from .database import SessionLocal, engine
+except ImportError:
+    import crud, models, schemas
+    from database import SessionLocal, engine
 
 # Create tables
 models.Base.metadata.create_all(bind=engine)
