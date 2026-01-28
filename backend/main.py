@@ -11,7 +11,38 @@ except ImportError:
     from database import SessionLocal, engine
 
 # Create tables
+# Create tables
 models.Base.metadata.create_all(bind=engine)
+
+# Auto-migration: Check for missing columns and add them
+from sqlalchemy import inspect, text
+
+def migrate_db():
+    inspector = inspect(engine)
+    if not inspector.has_table("notes"):
+        return
+
+    columns = [col['name'] for col in inspector.get_columns("notes")]
+    
+    with engine.connect() as conn:
+        with conn.begin(): # Transactional
+            if "reminder_time" not in columns:
+                print("Migrating: Adding reminder_time column")
+                conn.execute(text("ALTER TABLE notes ADD COLUMN reminder_time INTEGER"))
+            if "pinned" not in columns:
+                print("Migrating: Adding pinned column")
+                if "sqlite" in str(engine.url):
+                    conn.execute(text("ALTER TABLE notes ADD COLUMN pinned BOOLEAN DEFAULT 0"))
+                else:
+                    conn.execute(text("ALTER TABLE notes ADD COLUMN pinned BOOLEAN DEFAULT FALSE"))
+            if "pin_order" not in columns:
+                print("Migrating: Adding pin_order column")
+                conn.execute(text("ALTER TABLE notes ADD COLUMN pin_order INTEGER"))
+
+try:
+    migrate_db()
+except Exception as e:
+    print(f"Migration failed (might be already up to date): {e}")
 
 import os
 # ... imports
