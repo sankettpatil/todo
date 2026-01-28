@@ -30,6 +30,14 @@ app.add_middleware(
     allow_headers=["*", "X-User-Email", "Content-Type", "Authorization"],
 )
 
+@app.get("/")
+def read_root():
+    return {"message": "Todo API is running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 # Dependency
 def get_db():
     db = SessionLocal()
