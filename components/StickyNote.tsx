@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Plus, Type, PenLine, Smile, Image as ImageIcon, X, Check, Circle, CheckCircle2 } from 'lucide-react';
-import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
+import { Settings, Plus, Type, PenLine, Image as ImageIcon, X, Check, Circle, CheckCircle2, Trash2, GripVertical, Pin } from 'lucide-react';
+import Tooltip from './Tooltip';
 
 interface NoteProps {
     id: number;
@@ -12,8 +12,12 @@ interface NoteProps {
     created_at?: number;
     updated_at?: number;
     reminder_time?: number; // Unix timestamp for scheduled reminder
+    pinned?: boolean; // Whether note is pinned
+    pin_order?: number; // Pin order (1-3)
     onDelete: (id: number) => void;
     onUpdate: (id: number, updates: { title?: string, description?: string, points?: string[] }) => void;
+    onPin: (id: number) => void; // Pin/unpin callback
+    onComplete?: (id: number) => void; // Completion callback
     // Drag and drop
     draggable?: boolean;
     onDragStart?: (e: React.DragEvent, id: number) => void;
@@ -25,15 +29,15 @@ interface NoteProps {
 }
 
 export default function StickyNote({
-    id, title, description, points, created_at, updated_at, reminder_time,
-    onDelete, onUpdate,
+    id, title, description, points, created_at, updated_at, reminder_time, pinned = false, pin_order,
+    onDelete, onUpdate, onPin, onComplete,
     draggable = true, onDragStart, onDragOver, onDragEnd, onDrop, isDragging = false, isDragOver = false
 }: NoteProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newPoint, setNewPoint] = useState('');
 
     // Interaction States
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
     const [isEditing, setIsEditing] = useState(false);
 
     // Edit Mode States
@@ -59,7 +63,6 @@ export default function StickyNote({
         onUpdate(id, { points: [...points, text] });
         setNewPoint('');
         setIsAdding(true); // Keep adding mode open
-        setShowEmojiPicker(false);
         // Defer focus to allow render cycle to complete if needed, though usually sync in React 18+ for this
         setTimeout(() => addInputRef.current?.focus(), 10);
     };
@@ -67,13 +70,6 @@ export default function StickyNote({
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         handleAddPoint(newPoint);
-    };
-
-    const onEmojiClick = (emojiData: EmojiClickData) => {
-        if (!isAdding) {
-            setIsAdding(true);
-        }
-        setNewPoint(prev => prev + emojiData.emoji);
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,6 +122,9 @@ export default function StickyNote({
         const allTasksCompleted = actualTasks.length > 0 && actualTasks.every(p => p.startsWith('DONE:'));
 
         if (allTasksCompleted) {
+            // Track completion stats if handler provided
+            onComplete?.(id);
+
             // Auto-delete the note after a brief delay to show the completion animation
             setTimeout(() => {
                 onDelete(id);
@@ -167,10 +166,10 @@ export default function StickyNote({
     return (
         <div className={`
       group relative w-full
-      rounded-3xl
-      bg-[#1c1c1e]/60 
+      rounded-2xl md:rounded-3xl
+      bg-[#1c1c1e]/80 
       backdrop-blur-2xl
-      border border-white/5
+      border border-white/10
       shadow-xl
       transition-all duration-300
       hover:-translate-y-1 hover:shadow-2xl
@@ -186,72 +185,69 @@ export default function StickyNote({
             onDrop={(e) => onDrop?.(e, id)}
         >
             {/* Header */}
-            <div className="relative flex items-start justify-between p-6 pb-4 border-b border-white/5">
+            <div className="relative flex items-start justify-between p-3 md:p-6 pb-2 md:pb-4 border-b border-white/5">
                 <div className="flex flex-col min-w-0 flex-1 mr-4">
                     {isEditing ? (
                         <input
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
-                            className="w-full bg-transparent border-none text-2xl font-bold text-white focus:outline-none placeholder:text-white/30 -ml-0.5"
+                            className="w-full bg-transparent border-none text-lg md:text-2xl font-bold text-white focus:outline-none placeholder:text-white/30 -ml-0.5"
                             placeholder="Title..."
                         />
                     ) : (
-                        <h3 className="text-2xl font-bold text-white tracking-tight truncate pr-2">
+                        <h3 className="text-lg md:text-2xl font-bold text-white tracking-tight truncate pr-2">
                             {title}
                         </h3>
                     )}
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
-                    <button
-                        className="text-white/20 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                        onClick={() => onDelete(id)}
-                    >
-                        <X size={20} />
-                    </button>
+                    <Tooltip text="Drag to reorder">
+                        <button
+                            className="text-white/20 hover:text-white/80 transition-colors opacity-0 group-hover:opacity-100 p-2 md:p-1 rounded-lg min-h-[44px] md:min-h-0 min-w-[44px] md:min-w-0 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                        >
+                            <GripVertical size={20} />
+                        </button>
+                    </Tooltip>
                 </div>
 
                 {/* Timestamp at border line - ORIGINAL DESIGN RESTORED */}
                 {dateStr && !isEditing && (
-                    <div className="absolute -bottom-2.5 right-6 bg-[#1c1c1e] px-2 flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-white/30 font-semibold">
+                    <div className="absolute -bottom-2.5 right-3 md:right-6 bg-[#1c1c1e] px-1 md:px-2 flex items-center gap-1 md:gap-2">
+                        <span className="text-[8px] md:text-[10px] uppercase tracking-wider text-white/30 font-semibold">
                             {dateStr}
                         </span>
-                        {isEdited && (
-                            <span className="text-[8px] uppercase tracking-wider text-white/20 font-semibold">
-                                Edited
-                            </span>
-                        )}
+                        {isEdited && <span className="text-[8px] md:text-[10px] text-orange-400/60 font-bold uppercase tracking-wide">Edited</span>}
                     </div>
                 )}
 
             </div>
 
             {/* Content */}
-            <div className="px-6 py-6 space-y-6 flex-1">
+            <div className="px-3 py-3 md:px-6 md:py-6 space-y-3 md:space-y-6 flex-1">
                 {/* Description - Only show in view mode */}
                 {!isEditing && description && (
-                    <p className="text-base text-white/70 leading-relaxed font-normal">
+                    <p className="text-sm md:text-base text-white/70 leading-relaxed font-normal">
                         {description}
                     </p>
                 )}
 
                 {/* Points */}
                 {(points.length > 0 || isEditing) && (
-                    <ul className="space-y-4">
+                    <ul className="space-y-2 md:space-y-4">
                         {isEditing ? (
                             // Edit Mode: Show purely in array order, modern styled inputs
                             editPoints.map((point, index) => (
                                 <li key={index} className="flex items-start gap-4">
                                     <div className="mt-1 flex-shrink-0 text-white/20">
-                                        <Circle size={20} />
+                                        <Circle size={16} className="md:w-5 md:h-5" />
                                     </div>
                                     <input
                                         type="text"
                                         value={point}
                                         onChange={(e) => updateEditPoint(index, e.target.value)}
-                                        className="flex-1 bg-transparent border-none text-base text-white/90 placeholder-white/30 focus:outline-none leading-relaxed -ml-0.5 py-0.5"
+                                        className="flex-1 bg-transparent border-none text-sm md:text-base text-white/90 placeholder-white/30 focus:outline-none leading-relaxed -ml-0.5 py-0.5"
                                         placeholder="Task text..."
                                     />
                                     <button
@@ -295,12 +291,14 @@ export default function StickyNote({
                                 return (
                                     <li
                                         key={originalIndex}
-                                        className={`flex items-start gap-4 text-base transition-all duration-500 ease-in-out cursor-pointer group/item ${done ? 'opacity-40' : 'opacity-100'}`}
+                                        className={`flex items-start gap-2 md:gap-4 text-sm md:text-base transition-all duration-500 ease-in-out cursor-pointer group/item ${done ? 'opacity-40' : 'opacity-100'}`}
                                         onClick={() => toggleTaskDone(originalIndex)}
                                     >
-                                        <div className="mt-1 flex-shrink-0 text-white/40 group-hover/item:text-white transition-colors">
-                                            {done ? <CheckCircle2 size={20} className="text-white/60" /> : <Circle size={20} />}
-                                        </div>
+                                        <button
+                                            className="mt-0.5 md:mt-1 flex-shrink-0 text-white/40 group-hover/item:text-white transition-colors p-1 md:p-0 flex items-center justify-center"
+                                        >
+                                            {done ? <CheckCircle2 size={16} className="md:w-5 md:h-5 text-white/60" /> : <Circle size={16} className="md:w-5 md:h-5" />}
+                                        </button>
                                         <span className={`break-words leading-relaxed flex-1 ${done ? 'line-through decoration-white/30' : 'text-white/90'}`}>
                                             {text}
                                         </span>
@@ -321,7 +319,7 @@ export default function StickyNote({
                             placeholder="Type text or use emoji..."
                             value={newPoint}
                             onChange={(e) => setNewPoint(e.target.value)}
-                            onBlur={() => !newPoint && !showEmojiPicker && setIsAdding(false)}
+                            onBlur={() => !newPoint && setIsAdding(false)}
                             className="w-full bg-white/10 text-white text-base px-4 py-3 rounded-xl border border-white/20 focus:outline-none focus:border-white/40 transition-all placeholder:text-white/30 shadow-inner"
                         />
                     </form>
@@ -329,50 +327,72 @@ export default function StickyNote({
             </div>
 
             {/* Action Bar */}
-            <div className="mt-auto px-6 py-4 border-t border-white/5 flex gap-2 justify-between items-center relative">
+            <div className="mt-auto px-0.5 md:px-6 py-2 md:py-4 border-t border-white/5 flex gap-0 md:gap-2 justify-start items-center relative">
                 {/* Scheduled Reminder - at bottom border line, matching timestamp style */}
                 {reminder_time && !isEditing && (
-                    <div className="absolute -top-2.5 right-6 bg-[#1c1c1e] px-2 flex items-center gap-1.5">
-                        <span className="text-[10px]">⏰</span>
-                        <span className="text-[10px] uppercase tracking-wider text-white/30 font-semibold">
+                    <div className="absolute -top-2.5 right-3 md:right-6 bg-[#1c1c1e] px-1 md:px-2 flex items-center gap-1 md:gap-1.5">
+                        <span className="text-[8px] md:text-[10px]">⏰</span>
+                        <span className="text-[8px] md:text-[10px] uppercase tracking-wider text-white/30 font-semibold">
                             {new Date(reminder_time * 1000).toLocaleDateString()} at {new Date(reminder_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                     </div>
                 )}
 
-                <button
-                    onClick={() => setIsAdding(!isAdding)}
-                    className={`p-3 rounded-full hover:bg-white/10 transition-all ${isAdding ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'}`}
-                >
-                    <Plus size={20} />
-                </button>
+                <Tooltip text="Add task">
+                    <button
+                        onClick={() => setIsAdding(!isAdding)}
+                        className={`p-2 md:p-3 rounded-full hover:bg-white/10 transition-all ${isAdding ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'}`}
+                    >
+                        <Plus size={16} className="md:w-5 md:h-5" />
+                    </button>
+                </Tooltip>
 
-                <button
-                    onClick={() => {
-                        if (isEditing) {
-                            saveEdits();
-                        } else {
-                            setIsEditing(true);
-                        }
-                    }}
-                    className={`p-3 rounded-full hover:bg-white/10 transition-all ${isEditing ? 'text-green-400 bg-green-500/10 hover:text-green-300' : 'text-white/40 hover:text-white/70'}`}
-                >
-                    {isEditing ? <Check size={20} /> : <PenLine size={20} />}
-                </button>
+                <Tooltip text={isEditing ? 'Save changes' : 'Edit note'}>
+                    <button
+                        onClick={() => {
+                            if (isEditing) {
+                                saveEdits();
+                            } else {
+                                setIsEditing(true);
+                            }
+                        }}
+                        className={`p-2 md:p-3 rounded-full hover:bg-white/10 transition-all ${isEditing ? 'text-green-400 bg-green-500/10 hover:text-green-300' : 'text-white/40 hover:text-white/70'}`}
+                    >
+                        {isEditing ? <Check size={16} className="md:w-5 md:h-5" /> : <PenLine size={16} className="md:w-5 md:h-5" />}
+                    </button>
+                </Tooltip>
 
-                <button
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className={`p-3 rounded-full hover:bg-white/10 transition-all ${showEmojiPicker ? 'text-yellow-400 hover:text-yellow-300' : 'text-white/40 hover:text-white/70'}`}
-                >
-                    <Smile size={20} />
-                </button>
+                <Tooltip text="Upload image">
+                    <button
+                        onClick={triggerImageUpload}
+                        className="p-2 md:p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
+                    >
+                        <ImageIcon size={16} className="md:w-5 md:h-5" />
+                    </button>
+                </Tooltip>
 
-                <button
-                    onClick={triggerImageUpload}
-                    className="p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
-                >
-                    <ImageIcon size={20} />
-                </button>
+                <Tooltip text={pinned ? 'Unpin note' : 'Pin note'}>
+                    <button
+                        onClick={() => onPin(id)}
+                        className={`p-2 md:p-3 rounded-full hover:bg-white/10 transition-all relative ${pinned ? 'text-yellow-400 hover:text-yellow-300' : 'text-white/40 hover:text-white/70'}`}
+                    >
+                        <Pin size={16} className="md:w-5 md:h-5" fill={pinned ? 'currentColor' : 'none'} />
+                        {pinned && pin_order && (
+                            <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 text-black text-[8px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
+                                {pin_order}
+                            </span>
+                        )}
+                    </button>
+                </Tooltip>
+
+                <Tooltip text="Delete note">
+                    <button
+                        onClick={() => onDelete(id)}
+                        className="p-2 md:p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                    >
+                        <Trash2 size={16} className="md:w-5 md:h-5" />
+                    </button>
+                </Tooltip>
             </div>
 
             {/* Hidden File Input */}
@@ -384,20 +404,7 @@ export default function StickyNote({
                 onChange={handleImageUpload}
             />
 
-            {/* Emoji Picker Popover */}
-            {showEmojiPicker && (
-                <div className="absolute bottom-20 right-0 z-50">
-                    <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)}></div>
-                    <div className="relative z-50 shadow-2xl rounded-2xl overflow-hidden border border-white/10">
-                        <EmojiPicker
-                            theme={Theme.DARK}
-                            onEmojiClick={onEmojiClick}
-                            width={320}
-                            height={400}
-                        />
-                    </div>
-                </div>
-            )}
+
         </div>
     );
 }

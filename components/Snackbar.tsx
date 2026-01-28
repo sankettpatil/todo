@@ -5,11 +5,11 @@ import { X } from 'lucide-react';
 
 interface SnackbarProps {
     message: string;
-    type?: 'success' | 'error' | 'info';
+    type?: 'created' | 'edited' | 'deleted' | 'error' | 'info';
     onClose: () => void;
 }
 
-export default function Snackbar({ message, type = 'success', onClose }: SnackbarProps) {
+export default function Snackbar({ message, type = 'created', onClose }: SnackbarProps) {
     useEffect(() => {
         const timer = setTimeout(() => {
             onClose();
@@ -18,9 +18,26 @@ export default function Snackbar({ message, type = 'success', onClose }: Snackba
         return () => clearTimeout(timer);
     }, [onClose]);
 
-    const bgColor = type === 'success' ? 'bg-green-500/20' : type === 'error' ? 'bg-red-500/20' : 'bg-blue-500/20';
-    const borderColor = type === 'success' ? 'border-green-400/40' : type === 'error' ? 'border-red-400/40' : 'border-blue-400/40';
-    const textColor = type === 'success' ? 'text-green-300' : type === 'error' ? 'text-red-300' : 'text-blue-300';
+    const bgColor =
+        type === 'created' ? 'bg-green-500/20' :
+            type === 'edited' ? 'bg-yellow-500/20' :
+                type === 'deleted' ? 'bg-red-500/20' :
+                    type === 'error' ? 'bg-red-500/20' :
+                        'bg-blue-500/20';
+
+    const borderColor =
+        type === 'created' ? 'border-green-400/40' :
+            type === 'edited' ? 'border-yellow-400/40' :
+                type === 'deleted' ? 'border-red-400/40' :
+                    type === 'error' ? 'border-red-400/40' :
+                        'border-blue-400/40';
+
+    const textColor =
+        type === 'created' ? 'text-green-300' :
+            type === 'edited' ? 'text-yellow-300' :
+                type === 'deleted' ? 'text-red-300' :
+                    type === 'error' ? 'text-red-300' :
+                        'text-blue-300';
 
     return (
         <div className={`

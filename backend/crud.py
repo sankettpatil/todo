@@ -10,7 +10,13 @@ def get_notes(db: Session, owner_email: str | None = None, skip: int = 0, limit:
     if owner_email:
         query = query.filter(models.Note.owner_email == owner_email)
     
-    notes = query.offset(skip).limit(limit).all()
+    # Sort by pinned first (descending), then pin_order (ascending for pinned), then id
+    notes = query.order_by(
+        models.Note.pinned.desc(),
+        models.Note.pin_order.asc().nullslast(),
+        models.Note.id.desc()
+    ).offset(skip).limit(limit).all()
+    
     results = []
     for note in notes:
         points = json.loads(note.content) if note.content else []
@@ -22,7 +28,9 @@ def get_notes(db: Session, owner_email: str | None = None, skip: int = 0, limit:
             created_at=note.created_at,
             updated_at=note.updated_at,
             owner_email=note.owner_email,
-            reminder_time=note.reminder_time
+            reminder_time=note.reminder_time,
+            pinned=note.pinned or False,
+            pin_order=note.pin_order
         ))
     return results
 
@@ -53,7 +61,9 @@ def create_note(db: Session, note: schemas.NoteCreate, owner_email: str | None =
         created_at=db_note.created_at,
         updated_at=db_note.updated_at,
         owner_email=db_note.owner_email,
-        reminder_time=db_note.reminder_time
+        reminder_time=db_note.reminder_time,
+        pinned=db_note.pinned or False,
+        pin_order=db_note.pin_order
     )
 
 def delete_note(db: Session, note_id: int):
@@ -73,6 +83,10 @@ def update_note(db: Session, note_id: int, note_update: schemas.NoteUpdate):
         db_note.content = json.dumps(note_update.points)
     if note_update.reminder_time is not None:
         db_note.reminder_time = note_update.reminder_time
+    if note_update.pinned is not None:
+        db_note.pinned = note_update.pinned
+    if note_update.pin_order is not None:
+        db_note.pin_order = note_update.pin_order
     
     # Update timestamp whenever note is edited
     db_note.updated_at = int(time.time())
@@ -89,5 +103,7 @@ def update_note(db: Session, note_id: int, note_update: schemas.NoteUpdate):
         created_at=db_note.created_at,
         updated_at=db_note.updated_at,
         owner_email=db_note.owner_email,
-        reminder_time=db_note.reminder_time
+        reminder_time=db_note.reminder_time,
+        pinned=db_note.pinned or False,
+        pin_order=db_note.pin_order
     )

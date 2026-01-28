@@ -15,3 +15,5 @@ class Note(Base):
     updated_at = Column(Integer, nullable=True)
     owner_email = Column(String, index=True, nullable=True) # Optional: for ordering
     reminder_time = Column(Integer, nullable=True) # Unix timestamp for reminder
+    pinned = Column(Boolean, default=False) # Whether note is pinned
+    pin_order = Column(Integer, nullable=True) # Order of pinned notes (1-3)

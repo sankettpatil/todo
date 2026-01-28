@@ -65,6 +65,34 @@ export default function LoginPage() {
                     <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 -ml-2 group-hover:ml-0 transition-all" />
                 </button>
 
+                <div className="relative flex items-center justify-center w-full">
+                    <div className="absolute w-full h-[1px] bg-white/10"></div>
+                    <span className="relative bg-[#1c1c1e] px-4 text-xs text-white/30 uppercase tracking-wider font-medium">Or</span>
+                </div>
+
+                <button
+                    onClick={() => {
+                        const guestId = `guest-${Math.random().toString(36).substr(2, 9)}`;
+                        signIn('guest-login', { id: guestId, callbackUrl: '/' });
+                    }}
+                    className="
+            w-full
+            bg-white/5 
+            border border-white/10
+            text-white/70
+            font-semibold text-lg
+            py-4 px-6
+            rounded-2xl
+            flex items-center justify-center gap-3
+            hover:bg-white/10 hover:text-white hover:border-white/20
+            hover:scale-[1.02]
+            active:scale-[0.98]
+            transition-all duration-200
+          "
+                >
+                    Continue as Guest
+                </button>
+
                 <p className="text-xs text-white/20 mt-4">
                     By continuing, you agree to our Terms of Service and Privacy Policy.
                 </p>

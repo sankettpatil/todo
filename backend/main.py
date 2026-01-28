@@ -67,3 +67,21 @@ def update_note(note_id: int, note_update: schemas.NoteUpdate, db: Session = Dep
     if not updated_note:
         raise HTTPException(status_code=404, detail="Note not found")
     return updated_note
+
+@app.patch("/notes/{note_id}/pin")
+def toggle_pin_note(
+    note_id: int, 
+    db: Session = Depends(get_db),
+    x_user_email: str | None = Header(default=None, alias="X-User-Email")
+):
+    try:
+        from . import pin_utils
+    except ImportError:
+        import pin_utils
+    
+    result = pin_utils.toggle_pin(db, note_id=note_id, owner_email=x_user_email)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Note not found")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
