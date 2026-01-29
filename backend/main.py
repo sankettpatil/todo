@@ -35,9 +35,14 @@ def migrate_db():
                     conn.execute(text("ALTER TABLE notes ADD COLUMN pinned BOOLEAN DEFAULT 0"))
                 else:
                     conn.execute(text("ALTER TABLE notes ADD COLUMN pinned BOOLEAN DEFAULT FALSE"))
-            if "pin_order" not in columns:
                 print("Migrating: Adding pin_order column")
                 conn.execute(text("ALTER TABLE notes ADD COLUMN pin_order INTEGER"))
+            if "color" not in columns:
+                print("Migrating: Adding color column")
+                conn.execute(text("ALTER TABLE notes ADD COLUMN color VARCHAR DEFAULT 'bg-yellow-200'"))
+            if "tags" not in columns:
+                print("Migrating: Adding tags column")
+                conn.execute(text("ALTER TABLE notes ADD COLUMN tags VARCHAR DEFAULT '[]'"))
 
 try:
     migrate_db()

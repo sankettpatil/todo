@@ -30,7 +30,9 @@ def get_notes(db: Session, owner_email: str | None = None, skip: int = 0, limit:
             owner_email=note.owner_email,
             reminder_time=note.reminder_time,
             pinned=note.pinned or False,
-            pin_order=note.pin_order
+            pin_order=note.pin_order,
+            color=note.color,
+            tags=json.loads(note.tags) if note.tags else []
         ))
     return results
 
@@ -46,7 +48,9 @@ def create_note(db: Session, note: schemas.NoteCreate, owner_email: str | None =
         created_at=timestamp,
         updated_at=timestamp,
         owner_email=owner_email,
-        reminder_time=note.reminder_time
+        reminder_time=note.reminder_time,
+        color=note.color,
+        tags=json.dumps(note.tags) if note.tags else "[]"
     )
     db.add(db_note)
     db.commit()
@@ -62,8 +66,10 @@ def create_note(db: Session, note: schemas.NoteCreate, owner_email: str | None =
         updated_at=db_note.updated_at,
         owner_email=db_note.owner_email,
         reminder_time=db_note.reminder_time,
-        pinned=db_note.pinned or False,
-        pin_order=db_note.pin_order
+        pinned=db_note.pinned,
+        pin_order=db_note.pin_order,
+        color=db_note.color,
+        tags=note.tags
     )
 
 def delete_note(db: Session, note_id: int):
@@ -87,6 +93,10 @@ def update_note(db: Session, note_id: int, note_update: schemas.NoteUpdate):
         db_note.pinned = note_update.pinned
     if note_update.pin_order is not None:
         db_note.pin_order = note_update.pin_order
+    if note_update.color is not None:
+        db_note.color = note_update.color
+    if note_update.tags is not None:
+        db_note.tags = json.dumps(note_update.tags)
     
     # Update timestamp whenever note is edited
     db_note.updated_at = int(time.time())
@@ -104,6 +114,8 @@ def update_note(db: Session, note_id: int, note_update: schemas.NoteUpdate):
         updated_at=db_note.updated_at,
         owner_email=db_note.owner_email,
         reminder_time=db_note.reminder_time,
-        pinned=db_note.pinned or False,
-        pin_order=db_note.pin_order
+        pinned=db_note.pinned,
+        pin_order=db_note.pin_order,
+        color=db_note.color,
+        tags=json.loads(db_note.tags) if db_note.tags else []
     )

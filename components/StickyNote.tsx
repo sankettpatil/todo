@@ -11,7 +11,8 @@ interface NoteProps {
     points: string[];
     created_at?: number;
     updated_at?: number;
-    reminder_time?: number; // Unix timestamp for scheduled reminder
+    color?: string;
+    tags?: string[];
     pinned?: boolean; // Whether note is pinned
     pin_order?: number; // Pin order (1-3)
     onDelete: (id: number) => void;
@@ -29,7 +30,7 @@ interface NoteProps {
 }
 
 export default function StickyNote({
-    id, title, description, points, created_at, updated_at, reminder_time, pinned = false, pin_order,
+    id, title, description, points, created_at, updated_at, color, tags, pinned = false, pin_order,
     onDelete, onUpdate, onPin, onComplete,
     draggable = true, onDragStart, onDragOver, onDragEnd, onDrop, isDragging = false, isDragOver = false
 }: NoteProps) {
@@ -167,7 +168,7 @@ export default function StickyNote({
         <div className={`
       group relative w-full
       rounded-2xl md:rounded-3xl
-      bg-[#1c1c1e]/80 
+      ${color || 'bg-[#1c1c1e]/80'} 
       backdrop-blur-2xl
       border border-white/10
       shadow-xl
@@ -291,7 +292,7 @@ export default function StickyNote({
                                 return (
                                     <li
                                         key={originalIndex}
-                                        className={`flex items-start gap-2 md:gap-4 text-sm md:text-base transition-all duration-500 ease-in-out cursor-pointer group/item ${done ? 'opacity-40' : 'opacity-100'}`}
+                                        className={`flex items - start gap - 2 md: gap - 4 text - sm md: text - base transition - all duration - 500 ease -in -out cursor - pointer group / item ${done ? 'opacity-40' : 'opacity-100'} `}
                                         onClick={() => toggleTaskDone(originalIndex)}
                                     >
                                         <button
@@ -299,7 +300,7 @@ export default function StickyNote({
                                         >
                                             {done ? <CheckCircle2 size={16} className="md:w-5 md:h-5 text-white/60" /> : <Circle size={16} className="md:w-5 md:h-5" />}
                                         </button>
-                                        <span className={`break-words leading-relaxed flex-1 ${done ? 'line-through decoration-white/30' : 'text-white/90'}`}>
+                                        <span className={`break-words leading - relaxed flex - 1 ${done ? 'line-through decoration-white/30' : 'text-white/90'} `}>
                                             {text}
                                         </span>
                                     </li>
@@ -326,85 +327,90 @@ export default function StickyNote({
                 )}
             </div>
 
-            {/* Action Bar */}
-            <div className="mt-auto px-0.5 md:px-6 py-2 md:py-4 border-t border-white/5 flex gap-0 md:gap-2 justify-start items-center relative">
-                {/* Scheduled Reminder - at bottom border line, matching timestamp style */}
-                {reminder_time && !isEditing && (
-                    <div className="absolute -top-2.5 right-3 md:right-6 bg-[#1c1c1e] px-1 md:px-2 flex items-center gap-1 md:gap-1.5">
-                        <span className="text-[8px] md:text-[10px]">⏰</span>
-                        <span className="text-[8px] md:text-[10px] uppercase tracking-wider text-white/30 font-semibold">
-                            {new Date(reminder_time * 1000).toLocaleDateString()} at {new Date(reminder_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+            {/* Action Bar & Tags */}
+            <div className="mt-auto px-0.5 md:px-6 py-2 md:py-4 border-t border-white/5 flex flex-col gap-2 relative">
+
+                {/* Tags */}
+                {tags && tags.length > 0 && !isEditing && (
+                    <div className="flex flex-wrap gap-1 px-2 mb-1">
+                        {tags.map((tag, i) => (
+                            <span key={i} className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/60">
+                                {tag}
+                            </span>
+                        ))}
                     </div>
                 )}
 
-                <Tooltip text="Add task">
-                    <button
-                        onClick={() => setIsAdding(!isAdding)}
-                        className={`p-2 md:p-3 rounded-full hover:bg-white/10 transition-all ${isAdding ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'}`}
-                    >
-                        <Plus size={16} className="md:w-5 md:h-5" />
-                    </button>
-                </Tooltip>
+                <div className="flex gap-0 md:gap-2 justify-start items-center">
 
-                <Tooltip text={isEditing ? 'Save changes' : 'Edit note'}>
-                    <button
-                        onClick={() => {
-                            if (isEditing) {
-                                saveEdits();
-                            } else {
-                                setIsEditing(true);
-                            }
-                        }}
-                        className={`p-2 md:p-3 rounded-full hover:bg-white/10 transition-all ${isEditing ? 'text-green-400 bg-green-500/10 hover:text-green-300' : 'text-white/40 hover:text-white/70'}`}
-                    >
-                        {isEditing ? <Check size={16} className="md:w-5 md:h-5" /> : <PenLine size={16} className="md:w-5 md:h-5" />}
-                    </button>
-                </Tooltip>
+                    <Tooltip text="Add task">
+                        <button
+                            onClick={() => setIsAdding(!isAdding)}
+                            className={`p - 2 md: p - 3 rounded - full hover: bg - white / 10 transition - all ${isAdding ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/70'} `}
+                        >
+                            <Plus size={16} className="md:w-5 md:h-5" />
+                        </button>
+                    </Tooltip>
 
-                <Tooltip text="Upload image">
-                    <button
-                        onClick={triggerImageUpload}
-                        className="p-2 md:p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
-                    >
-                        <ImageIcon size={16} className="md:w-5 md:h-5" />
-                    </button>
-                </Tooltip>
+                    <Tooltip text={isEditing ? 'Save changes' : 'Edit note'}>
+                        <button
+                            onClick={() => {
+                                if (isEditing) {
+                                    saveEdits();
+                                } else {
+                                    setIsEditing(true);
+                                }
+                            }}
+                            className={`p - 2 md: p - 3 rounded - full hover: bg - white / 10 transition - all ${isEditing ? 'text-green-400 bg-green-500/10 hover:text-green-300' : 'text-white/40 hover:text-white/70'} `}
+                        >
+                            {isEditing ? <Check size={16} className="md:w-5 md:h-5" /> : <PenLine size={16} className="md:w-5 md:h-5" />}
+                        </button>
+                    </Tooltip>
 
-                <Tooltip text={pinned ? 'Unpin note' : 'Pin note'}>
-                    <button
-                        onClick={() => onPin(id)}
-                        className={`p-2 md:p-3 rounded-full hover:bg-white/10 transition-all relative ${pinned ? 'text-yellow-400 hover:text-yellow-300' : 'text-white/40 hover:text-white/70'}`}
-                    >
-                        <Pin size={16} className="md:w-5 md:h-5" fill={pinned ? 'currentColor' : 'none'} />
-                        {pinned && pin_order && (
-                            <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 text-black text-[8px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
-                                {pin_order}
-                            </span>
-                        )}
-                    </button>
-                </Tooltip>
+                    <Tooltip text="Upload image">
+                        <button
+                            onClick={triggerImageUpload}
+                            className="p-2 md:p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
+                        >
+                            <ImageIcon size={16} className="md:w-5 md:h-5" />
+                        </button>
+                    </Tooltip>
 
-                <Tooltip text="Delete note">
-                    <button
-                        onClick={() => onDelete(id)}
-                        className="p-2 md:p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
-                    >
-                        <Trash2 size={16} className="md:w-5 md:h-5" />
-                    </button>
-                </Tooltip>
+                    <Tooltip text={pinned ? 'Unpin note' : 'Pin note'}>
+                        <button
+                            onClick={() => onPin(id)}
+                            className={`p - 2 md: p - 3 rounded - full hover: bg - white / 10 transition - all relative ${pinned ? 'text-yellow-400 hover:text-yellow-300' : 'text-white/40 hover:text-white/70'} `}
+                        >
+                            <Pin size={16} className="md:w-5 md:h-5" fill={pinned ? 'currentColor' : 'none'} />
+                            {pinned && pin_order && (
+                                <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 text-black text-[8px] font-bold rounded-full w-3 h-3 flex items-center justify-center">
+                                    {pin_order}
+                                </span>
+                            )}
+                        </button>
+                    </Tooltip>
+
+                    <Tooltip text="Delete note">
+                        <button
+                            onClick={() => onDelete(id)}
+                            className="p-2 md:p-3 rounded-full hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                        >
+                            <Trash2 size={16} className="md:w-5 md:h-5" />
+                        </button>
+                    </Tooltip>
+                </div>
+
+                {/* Hidden File Input */}
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                />
+
+
             </div>
-
-            {/* Hidden File Input */}
-            <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handleImageUpload}
-            />
-
-
         </div>
     );
 }

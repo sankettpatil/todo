@@ -1,12 +1,13 @@
 "use client";
 
 import { useSession, signIn } from 'next-auth/react';
+import { Settings, Plus, Type, PenLine, Image as ImageIcon, X, Check, Search, Calendar, Clock, Bell, Trash2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import StickyNote from './StickyNote';
 import Snackbar from './Snackbar';
 import Tooltip from './Tooltip';
-import { Plus, X, Play, Pause, Square, Info, BarChart2 } from 'lucide-react';
+import { Play, Pause, Square, Info, BarChart2 } from 'lucide-react';
 
 interface Note {
     id: number;
@@ -18,6 +19,8 @@ interface Note {
     reminder_time?: number;  // Unix timestamp for reminder
     pinned?: boolean;
     pin_order?: number;
+    color?: string;
+    tags?: string[];
 }
 
 export default function NoteGrid() {
@@ -31,14 +34,14 @@ export default function NoteGrid() {
     // Form State
     const [newTitle, setNewTitle] = useState('');
     const [newPoints, setNewPoints] = useState<string[]>(['']);
-    const [newReminderDate, setNewReminderDate] = useState<string>(''); // YYYY-MM-DD
-    const [newReminderTime, setNewReminderTime] = useState<string>(''); // HH:MM
+    const [newColor, setNewColor] = useState('bg-[#1c1c1e]/80');
+    const [newTags, setNewTags] = useState<string[]>([]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
 
     // Snackbar State
-    const [snackbar, setSnackbar] = useState<{ message: string; type: 'created' | 'edited' | 'deleted' | 'error' | 'info' } | null>(null);
+    const [snackbar, setSnackbar] = useState<{ message: string; type: 'created' | 'edited' | 'deleted' | 'error' | 'info' | 'success' } | null>(null);
 
     // Sidebar State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -76,10 +79,18 @@ export default function NoteGrid() {
     }, []);
 
     // Timer Logic
+
+    // Modified Interval for Daily Stats Accuracy
     useEffect(() => {
         if (timerStatus === 'running') {
             timerIntervalRef.current = setInterval(() => {
                 setTimerSeconds(s => s + 1);
+                // We update totalSeconds in real-time for display/stats
+                setDailyStats(prev => {
+                    const newStats = { ...prev, totalSeconds: prev.totalSeconds + 1 };
+                    localStorage.setItem('study_stats', JSON.stringify(newStats));
+                    return newStats;
+                });
             }, 1000);
         } else {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -93,46 +104,6 @@ export default function NoteGrid() {
         setTimerStatus('running');
     };
 
-    const handleTimerPause = () => {
-        setTimerStatus('paused');
-        // Record Lap and Add to Daily Stats
-        // Note: For simplicity, we just add the *elapsed session time since last pause*? 
-        // Actually, user said "paused time... counted as lap 1".
-        // To strictly follow "lap 1 is start->pause", "lap 2 is resume->pause":
-        // We need to track the *duration of the current lap*.
-        // But the main counter shows *total session time*. 
-        // Let's increment the LAP COUNT.
-        // We'll calculate the *delta* added to daily total in a real implementation, 
-        // but for now let's just assume we add the accumulated seconds since last pause? 
-        // Actually, a simpler way for "Daily Study Time" is to just update it every second or on pause.
-        // Let's update stats on Pause/Stop for accuracy.
-        // Wait, if we reset on Stop, we need to know how much to add.
-        // Let's stick to: Update Daily Stats continuously or on Pause?
-        // Let's update on Pause/Stop to minimize writes.
-        // We need 'startTime' of the current lap to know how much to add.
-        // Let's use a simpler approach: 
-        // We won't track exact "lap durations" separately, just increment Lap Count on Pause.
-        // The "Daily Study Time" should technically be the sum of all timer activity today.
-        // Let's just add 1 second to daily stats in the interval for 100% accuracy.
-    };
-
-    // Modified Interval for Daily Stats Accuracy
-    useEffect(() => {
-        if (timerStatus === 'running') {
-            const interval = setInterval(() => {
-                setTimerSeconds(s => s + 1);
-                setDailyStats(prev => {
-                    const newStats = { ...prev, totalSeconds: prev.totalSeconds + 1 };
-                    localStorage.setItem('study_stats', JSON.stringify(newStats));
-                    return newStats;
-                });
-            }, 1000);
-            return () => clearInterval(interval);
-        }
-    }, [timerStatus]);
-
-    // Override the previous simple interval
-
     const onPauseClick = () => {
         setTimerStatus('paused');
         setDailyStats(prev => {
@@ -143,16 +114,19 @@ export default function NoteGrid() {
     };
 
     const onStopClick = () => {
-        // Increment Resets
+        setTimerStatus('idle');
+        setTimerSeconds(0);
         setDailyStats(prev => {
             const newStats = { ...prev, resets: prev.resets + 1 };
             localStorage.setItem('study_stats', JSON.stringify(newStats));
             return newStats;
         });
-
-        setTimerStatus('idle');
-        setTimerSeconds(0);
     };
+
+    // Check for reminders logic REMOVED
+    useEffect(() => {
+        // Cleanup interval if any existed
+    }, []);
 
     const handleNoteComplete = (id: number) => {
         setDailyStats(prev => {
@@ -178,11 +152,6 @@ export default function NoteGrid() {
     useEffect(() => {
         // Force dark mode class
         document.documentElement.classList.add('dark');
-
-        // Request notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
     }, []);
 
     useEffect(() => {
@@ -193,50 +162,7 @@ export default function NoteGrid() {
         }
     }, [status, router]);
 
-    // Check for reminders every minute
-    useEffect(() => {
-        const checkReminders = () => {
-            const now = Math.floor(Date.now() / 1000);
-            const notifiedKey = 'notified_reminders';
-            const notified = JSON.parse(localStorage.getItem(notifiedKey) || '[]');
 
-            notes.forEach(note => {
-                if (note.reminder_time) {
-                    // Only trigger if:
-                    // 1. The reminder time has arrived (within the last 2 minutes)
-                    // 2. Haven't already notified
-                    const timeDiff = now - note.reminder_time;
-                    const isTimeToNotify = timeDiff >= 0 && timeDiff < 120; // Within 2 minutes of scheduled time
-
-                    if (isTimeToNotify && !notified.includes(note.id)) {
-                        // Show snackbar notification
-                        setSnackbar({
-                            message: `⏰ Reminder: ${note.title}`,
-                            type: 'info'
-                        });
-
-                        // Show system notification (works even if tab is not focused)
-                        if ('Notification' in window && Notification.permission === 'granted') {
-                            new Notification('Sticky Board Reminder', {
-                                body: `msg: ${note.title}`,
-                                icon: '/waving_man_3d_icon.png' // Use our new cool icon
-                            });
-                        }
-
-                        // Mark as notified
-                        notified.push(note.id);
-                        localStorage.setItem(notifiedKey, JSON.stringify(notified));
-                    }
-                }
-            });
-        };
-
-        // Check immediately and then every minute
-        checkReminders();
-        const interval = setInterval(checkReminders, 60000); // 1 minute
-
-        return () => clearInterval(interval);
-    }, [notes]);
 
     const fetchNotes = async () => {
         if (!session?.user?.email) return;
@@ -262,15 +188,8 @@ export default function NoteGrid() {
         const nonEmptyPoints = newPoints.filter(p => p.trim());
         const timestamp = Math.floor(Date.now() / 1000);
 
-        // Combine date and time into timestamp
-        let reminderTimestamp: number | undefined;
-        if (newReminderDate && newReminderTime) {
-            const dateTimeStr = `${newReminderDate}T${newReminderTime}`;
-            reminderTimestamp = Math.floor(new Date(dateTimeStr).getTime() / 1000);
-        }
-
         try {
-            const res = await fetch(`${API_URL}/notes/`, {
+            const response = await fetch(`${API_URL}/notes/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -282,23 +201,30 @@ export default function NoteGrid() {
                     owner_email: session.user.email,
                     created_at: timestamp,
                     updated_at: timestamp,
-                    reminder_time: reminderTimestamp
+                    pinned: false,
+                    pin_order: null,
+                    color: newColor,
+                    tags: newTags
                 }),
             });
 
-            if (res.ok) {
-                const savedNote = await res.json();
-                setNotes([savedNote, ...notes]);
+            if (response.ok) {
+                const savedNote = await response.json();
+                // Optimistic update correction (replace temp ID)
+                // Actually, we should just fetch or replace.
+                // For simplicity, we just add the saved note and rely on key
+                setNotes(prev => [savedNote, ...prev]);
+
                 setNewTitle('');
                 setNewPoints(['']);
-                setNewReminderDate(''); // Clear date
-                setNewReminderTime(''); // Clear time
-
-                // Show success snackbar
-                setSnackbar({ message: 'Note created successfully!', type: 'created' });
+                setNewColor('bg-[#1c1c1e]/80');
+                setNewTags([]);
+                setSnackbar({ message: 'Note created successfully!', type: 'success' });
 
                 // Auto collapse sidebar
-                setIsSidebarOpen(false);
+                if (window.innerWidth < 1024) {
+                    setIsSidebarOpen(false);
+                }
 
                 // Auto hide snackbar
                 setTimeout(() => setSnackbar(null), 3000);
@@ -672,6 +598,32 @@ export default function NoteGrid() {
                                             <span>Add Task</span>
                                         </button>
 
+                                        {/* Magic Wand AI */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                // Simple Client-Side Magic
+                                                const emojis: Record<string, string> = { work: '💼', shop: '🛒', buy: '🛒', idea: '💡', urgent: '🔥', goal: '🎯', study: '📚', code: '💻', gym: '💪', meeting: '📅', call: '📞' };
+                                                let t = newTitle;
+                                                Object.keys(emojis).forEach(k => {
+                                                    if (t.toLowerCase().includes(k) && !t.includes(emojis[k])) t = emojis[k] + ' ' + t;
+                                                });
+                                                setNewTitle(t.charAt(0).toUpperCase() + t.slice(1));
+
+                                                const formattedPoints = newPoints.map(p => {
+                                                    let np = p.trim();
+                                                    if (np && !['-', '*'].includes(np[0])) np = np.charAt(0).toUpperCase() + np.slice(1);
+                                                    return np;
+                                                });
+                                                setNewPoints(formattedPoints);
+                                                setSnackbar({ message: "✨ Mark on deck!", type: 'success' }); // Fun message
+                                            }}
+                                            className="bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/30 rounded-full w-12 h-12 flex items-center justify-center cursor-pointer transition-all group text-purple-400 hover:text-purple-300 shadow-sm"
+                                            title="AI Magic Polish"
+                                        >
+                                            <Sparkles size={18} />
+                                        </button>
+
                                         <label className="bg-white/10 hover:bg-white/20 border border-white/10 hover:border-white/20 rounded-full w-12 h-12 flex items-center justify-center cursor-pointer transition-all group text-white/60 hover:text-white shadow-sm">
                                             <input
                                                 type="file"
@@ -707,26 +659,56 @@ export default function NoteGrid() {
                             {/* Spacer to push content to bottom */}
                             <div className="flex-1"></div>
 
-                            {/* Reminder Section - Moved to bottom */}
-                            <div className="space-y-2 mb-3 px-1">
-                                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
-                                    <span>⏰ Remind Me</span>
-                                </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="date"
-                                        value={newReminderDate}
-                                        onChange={(e) => setNewReminderDate(e.target.value)}
-                                        className="flex-1 bg-white/5 border border-white/10 rounded-full px-6 py-3 text-sm font-medium text-white/90 placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 focus:bg-white/10 transition-all duration-200 [color-scheme:dark] hover:bg-white/10 cursor-pointer text-center font-sans shadow-inner shadow-black/20"
-                                    />
-                                    <input
-                                        type="time"
-                                        value={newReminderTime}
-                                        onChange={(e) => setNewReminderTime(e.target.value)}
-                                        className="w-32 bg-white/5 border border-white/10 rounded-full px-6 py-3 text-sm font-medium text-white/90 placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 focus:bg-white/10 transition-all duration-200 [color-scheme:dark] hover:bg-white/10 cursor-pointer text-center font-sans shadow-inner shadow-black/20"
-                                    />
+                            {/* Vibe Features */}
+                            <div className="space-y-4 mb-4">
+                                {/* Color Picker */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-2 mb-2 block">Vibe Color</label>
+                                    <div className="flex gap-2 pl-1 overflow-x-auto pb-2 scrollbar-hide">
+                                        {[
+                                            { c: 'bg-[#1c1c1e]/80', l: 'Default' },
+                                            { c: 'bg-red-500/20', l: 'Red' },
+                                            { c: 'bg-orange-500/20', l: 'Orange' },
+                                            { c: 'bg-yellow-500/20', l: 'Yellow' },
+                                            { c: 'bg-green-500/20', l: 'Green' },
+                                            { c: 'bg-blue-500/20', l: 'Blue' },
+                                            { c: 'bg-purple-500/20', l: 'Purple' },
+                                            { c: 'bg-pink-500/20', l: 'Pink' }
+                                        ].map((opt, i) => (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                onClick={() => setNewColor(opt.c)}
+                                                className={`w-8 h-8 rounded-full border-2 transition-all ${opt.c} ${newColor === opt.c ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
+                                                title={opt.l}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Smart Tags */}
+                                <div>
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-2 mb-2 block">Tags</label>
+                                    <div className="flex flex-wrap gap-2 pl-1">
+                                        {['Work', 'Personal', 'Urgent', 'Idea', 'Goal', 'Health'].map(tag => (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (newTags.includes(tag)) setNewTags(newTags.filter(t => t !== tag));
+                                                    else setNewTags([...newTags, tag]);
+                                                }}
+                                                className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border transition-all ${newTags.includes(tag) ? 'bg-white text-black border-white' : 'bg-white/5 text-white/40 border-white/10 hover:border-white/20 hover:text-white/60'}`}
+                                            >
+                                                {tag}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
+
+
+
 
                             <div className="pt-3 mt-3 border-t border-white/10">
                                 <button
@@ -787,7 +769,8 @@ export default function NoteGrid() {
                                         points={note.points}
                                         created_at={note.created_at}
                                         updated_at={note.updated_at}
-                                        reminder_time={note.reminder_time}
+                                        color={note.color}
+                                        tags={note.tags}
                                         pinned={note.pinned}
                                         pin_order={note.pin_order}
                                         onDelete={handleDelete}
@@ -847,87 +830,89 @@ export default function NoteGrid() {
                             </div>
                         )}
                     </div>
-                </div>
-            </div >
+                </div >
 
-            {/* Stats Modal */}
-            {
-                isStatsOpen && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                        {/* Backdrop with blur */}
-                        <div
-                            className="absolute inset-0 bg-black/40 backdrop-blur-md transition-all"
-                            onClick={() => setIsStatsOpen(false)}
-                        />
+                {/* Stats Modal */}
+                {
+                    isStatsOpen && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                            {/* Backdrop with blur */}
+                            <div
+                                className="absolute inset-0 bg-black/40 backdrop-blur-md transition-all"
+                                onClick={() => setIsStatsOpen(false)}
+                            />
 
-                        {/* Modal Content */}
-                        <div className="relative bg-[#1c1c1e]/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl max-w-sm w-full transform transition-all scale-100 ring-1 ring-white/5">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                                    <BarChart2 className="text-blue-500" />
-                                    Daily Stats
-                                </h3>
-                                <button
-                                    onClick={() => setIsStatsOpen(false)}
-                                    className="text-white/40 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-colors"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Total Time */}
-                                <div className="col-span-2 bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/5 rounded-2xl p-5 flex flex-col items-center justify-center gap-1 group hover:border-white/10 transition-colors">
-                                    <span className="text-3xl font-mono font-bold text-white group-hover:scale-105 transition-transform duration-300">
-                                        {formatDailyTime(dailyStats.totalSeconds)}
-                                    </span>
-                                    <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Total Focus</span>
+                            {/* Modal Content */}
+                            <div className="relative bg-[#1c1c1e]/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl max-w-sm w-full transform transition-all scale-100 ring-1 ring-white/5">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                                        <BarChart2 className="text-blue-500" />
+                                        Daily Stats
+                                    </h3>
+                                    <button
+                                        onClick={() => setIsStatsOpen(false)}
+                                        className="text-white/40 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-colors"
+                                    >
+                                        <X size={20} />
+                                    </button>
                                 </div>
 
-                                {/* Laps */}
-                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
-                                    <span className="text-2xl font-bold text-white">{dailyStats.laps}</span>
-                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Laps</span>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Total Time */}
+                                    <div className="col-span-2 bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/5 rounded-2xl p-5 flex flex-col items-center justify-center gap-1 group hover:border-white/10 transition-colors">
+                                        <span className="text-3xl font-mono font-bold text-white group-hover:scale-105 transition-transform duration-300">
+                                            {formatDailyTime(dailyStats.totalSeconds)}
+                                        </span>
+                                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Total Focus</span>
+                                    </div>
+
+                                    {/* Laps */}
+                                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                        <span className="text-2xl font-bold text-white">{dailyStats.laps}</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Laps</span>
+                                    </div>
+
+                                    {/* Resets */}
+                                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                        <span className="text-2xl font-bold text-white">{dailyStats.resets}</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Resets</span>
+                                    </div>
+
+                                    {/* Completed Notes */}
+                                    <div className="col-span-2 bg-gradient-to-br from-green-500/10 to-teal-500/10 border border-white/5 rounded-2xl p-4 flex items-center justify-between px-6 hover:border-green-500/30 transition-colors">
+                                        <span className="text-xs font-bold text-green-400 uppercase tracking-widest">Notes Completed</span>
+                                        <span className="text-2xl font-bold text-white">{dailyStats.completedNotes}</span>
+                                    </div>
                                 </div>
 
-                                {/* Resets */}
-                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
-                                    <span className="text-2xl font-bold text-white">{dailyStats.resets}</span>
-                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Resets</span>
+                                <div className="mt-6 text-center">
+                                    <p className="text-[10px] text-white/20 font-medium">Stats reset automatically at midnight.</p>
                                 </div>
-
-                                {/* Completed Notes */}
-                                <div className="col-span-2 bg-gradient-to-br from-green-500/10 to-teal-500/10 border border-white/5 rounded-2xl p-4 flex items-center justify-between px-6 hover:border-green-500/30 transition-colors">
-                                    <span className="text-xs font-bold text-green-400 uppercase tracking-widest">Notes Completed</span>
-                                    <span className="text-2xl font-bold text-white">{dailyStats.completedNotes}</span>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 text-center">
-                                <p className="text-[10px] text-white/20 font-medium">Stats reset automatically at midnight.</p>
                             </div>
                         </div>
-                    </div>
-                )
-            }
+                    )
+                }
+
+
+
+                {/* Snackbar */}
+                {
+                    snackbar && (
+                        <Snackbar
+                            message={snackbar.message}
+                            type={snackbar.type}
+                            onClose={() => setSnackbar(null)}
+                        />
+                    )
+                }
+            </div>
 
             {/* Footer */}
-            <div className="border-t border-white/5 py-3 text-center">
-                <p className="text-xs text-white/30 font-medium">
+            <div className="border-t border-white/5 py-2 text-center bg-[#0e0e0f] z-40 w-full shrink-0">
+                <p className="text-[10px] text-white/20 font-medium">
                     Made With <span className="text-red-400">❤️</span> By Sanket
                 </p>
             </div>
-
-            {/* Snackbar */}
-            {
-                snackbar && (
-                    <Snackbar
-                        message={snackbar.message}
-                        type={snackbar.type}
-                        onClose={() => setSnackbar(null)}
-                    />
-                )
-            }
-        </div >
+        </div>
     );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, CheckCircle2, Edit2, Trash2, AlertCircle, Info } from 'lucide-react';
 
 interface SnackbarProps {
     message: string;
-    type?: 'created' | 'edited' | 'deleted' | 'error' | 'info';
+    type?: 'created' | 'edited' | 'deleted' | 'error' | 'info' | 'success';
     onClose: () => void;
 }
 
@@ -18,43 +18,34 @@ export default function Snackbar({ message, type = 'created', onClose }: Snackba
         return () => clearTimeout(timer);
     }, [onClose]);
 
-    const bgColor =
-        type === 'created' ? 'bg-green-500/20' :
-            type === 'edited' ? 'bg-yellow-500/20' :
-                type === 'deleted' ? 'bg-red-500/20' :
-                    type === 'error' ? 'bg-red-500/20' :
-                        'bg-blue-500/20';
+    const currentType = type || 'info';
 
-    const borderColor =
-        type === 'created' ? 'border-green-400/40' :
-            type === 'edited' ? 'border-yellow-400/40' :
-                type === 'deleted' ? 'border-red-400/40' :
-                    type === 'error' ? 'border-red-400/40' :
-                        'border-blue-400/40';
+    const styles = {
+        created: { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', icon: <CheckCircle2 size={18} /> },
+        success: { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', icon: <CheckCircle2 size={18} /> },
+        edited: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400', icon: <Edit2 size={18} /> },
+        deleted: { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-300', icon: <Trash2 size={18} /> },
+        error: { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-300', icon: <AlertCircle size={18} /> },
+        info: { bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400', icon: <Info size={18} /> }
+    };
 
-    const textColor =
-        type === 'created' ? 'text-green-300' :
-            type === 'edited' ? 'text-yellow-300' :
-                type === 'deleted' ? 'text-red-300' :
-                    type === 'error' ? 'text-red-300' :
-                        'text-blue-300';
+    const style = styles[currentType] || styles.info;
 
     return (
         <div className={`
-            fixed top-8 left-1/2 -translate-x-1/2 z-50
-            ${bgColor} ${borderColor} ${textColor}
-            backdrop-blur-xl border
-            rounded-2xl px-6 py-4
-            shadow-2xl
-            flex items-center gap-3
-            animate-slide-up
+            fixed bottom-6 left-1/2 -translate-x-1/2 z-50
+            flex items-center gap-3 px-4 py-3 rounded-xl
+            backdrop-blur-xl shadow-2xl
+            border active:scale-95 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4
+            ${style.bg} ${style.border} ${style.text}
         `}>
-            <span className="font-semibold">{message}</span>
+            {style.icon}
+            <span className="font-medium text-sm whitespace-nowrap">{message}</span>
             <button
                 onClick={onClose}
-                className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
+                className={`p-1 rounded-full hover:bg-white/10 transition-colors ${style.text}`}
             >
-                <X size={16} />
+                <X size={14} />
             </button>
         </div>
     );

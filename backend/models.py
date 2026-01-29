@@ -17,3 +17,5 @@ class Note(Base):
     reminder_time = Column(Integer, nullable=True) # Unix timestamp for reminder
     pinned = Column(Boolean, default=False) # Whether note is pinned
     pin_order = Column(Integer, nullable=True) # Order of pinned notes (1-3)
+    color = Column(String, default="bg-yellow-200") # Background color class
+    tags = Column(String, default="[]") # JSON string of tags

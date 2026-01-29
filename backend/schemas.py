@@ -7,6 +7,8 @@ class NoteBase(BaseModel):
     description: str | None = None
     points: List[str]
     reminder_time: int | None = None  # Unix timestamp for reminder
+    color: str | None = "bg-yellow-200"
+    tags: List[str] | None = []
 
 class NoteCreate(NoteBase):
     pass
@@ -18,6 +20,8 @@ class NoteUpdate(BaseModel):
     reminder_time: int | None = None  # Allow updating reminder
     pinned: bool | None = None  # Allow updating pin status
     pin_order: int | None = None  # Allow updating pin order
+    color: str | None = None
+    tags: List[str] | None = None
 
 class Note(NoteBase):
     id: int
@@ -27,6 +31,8 @@ class Note(NoteBase):
     reminder_time: int | None = None  # Include in response
     pinned: bool = False  # Include in response
     pin_order: int | None = None  # Include in response
+    color: str | None = "bg-yellow-200"
+    tags: List[str] | None = []
 
     class Config:
         from_attributes = True
